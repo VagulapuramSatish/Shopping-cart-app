@@ -32,7 +32,7 @@ func main() {
 
 	// === CORS Setup ===
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173"}, // React dev URL
+		AllowOrigins:     []string{"*"}, // Allow all for deployed frontend
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -41,15 +41,18 @@ func main() {
 	}))
 
 	// === Public routes ===
-	r.POST("/users", handlers.CreateUser)
-	r.POST("/users/login", handlers.Login)
-	r.GET("/users", handlers.ListUsers)
+	api := r.Group("/api") // Prefix API with /api
+	{
+		api.POST("/users", handlers.CreateUser)
+		api.POST("/users/login", handlers.Login)
+		api.GET("/users", handlers.ListUsers)
 
-	r.POST("/items", handlers.CreateItem)
-	r.GET("/items", handlers.ListItems)
+		api.POST("/items", handlers.CreateItem)
+		api.GET("/items", handlers.ListItems)
+	}
 
 	// === Protected routes ===
-	auth := r.Group("/")
+	auth := api.Group("/")
 	auth.Use(middleware.Auth()) // JWT middleware
 	{
 		auth.POST("/carts", handlers.CreateOrAddToCart)
@@ -59,27 +62,34 @@ func main() {
 		auth.GET("/orders", handlers.ListOrders)
 	}
 
+	// === Serve React frontend ===
+	// Build frontend locally: frontend/dist → backend/frontend
+	r.Static("/", "./frontend") // Serve static files
+	r.NoRoute(func(c *gin.Context) {
+		c.File("./frontend/index.html") // Serve index.html for React routing
+	})
+
 	// Start server
-	r.Run(":8080")
+	r.Run() // default port 8080
 }
 
 func SeedItems() {
-    items := []models.Item{
-        {Name: "Laptop", Status: "available"},
-        {Name: "Phone", Status: "available"},
-        {Name: "Headphones", Status: "available"},
-        {Name: "Monitor", Status: "available"},
-        {Name: "Keyboard", Status: "available"},
-        {Name: "Mouse", Status: "available"},
-        {Name: "Webcam", Status: "available"},
-        {Name: "Printer", Status: "available"},
-        {Name: "Speakers", Status: "available"},
-    }
+	items := []models.Item{
+		{Name: "Laptop", Status: "available"},
+		{Name: "Phone", Status: "available"},
+		{Name: "Headphones", Status: "available"},
+		{Name: "Monitor", Status: "available"},
+		{Name: "Keyboard", Status: "available"},
+		{Name: "Mouse", Status: "available"},
+		{Name: "Webcam", Status: "available"},
+		{Name: "Printer", Status: "available"},
+		{Name: "Speakers", Status: "available"},
+	}
 
-    for _, item := range items {
-        if err := database.DB.Create(&item).Error; err != nil {
-            println("Failed to insert item:", item.Name, err.Error())
-        }
-    }
-    println("Seeded default items successfully!")
+	for _, item := range items {
+		if err := database.DB.Create(&item).Error; err != nil {
+			println("Failed to insert item:", item.Name, err.Error())
+		}
+	}
+	println("Seeded default items successfully!")
 }
